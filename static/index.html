@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot</title>
+    <style>
+        /* Reset default styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Theme colors - can switch between dark and light */
+        :root {
+            --bg-primary: #343541;
+            --bg-secondary: #444654;
+            --bg-input: #40414f;
+            --border-color: #565869;
+            --text-primary: #ececf1;
+            --text-secondary: #c5c5d2;
+            --accent-color: #19c37d;
+            --user-bg: #5436da;
+            --scrollbar-bg: #343541;
+            --scrollbar-thumb: #565869;
+        }
+
+        /* Light theme colors */
+        [data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f7f7f8;
+            --bg-input: #ffffff;
+            --border-color: #d9d9e3;
+            --text-primary: #343541;
+            --text-secondary: #6e6e80;
+            --accent-color: #10a37f;
+            --user-bg: #5436da;
+            --scrollbar-bg: #f7f7f8;
+            --scrollbar-thumb: #d9d9e3;
+        }
+
+        /* Main body setup */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            background: var(--bg-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: var(--text-primary);
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* Top header bar */
+        .header {
+            background: var(--bg-primary);
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* Theme switch button */
+        .control-button {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+
+        .control-button:hover {
+            background: var(--bg-secondary);
+        }
+
+        /* Container for chat and welcome screen */
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Chat messages area */
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Each message wrapper (user or AI) */
+        .message-wrapper {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            padding: 24px 0;
+        }
+
+        /* Different background for user vs AI */
+        .message-wrapper.user {
+            background: var(--bg-primary);
+        }
+
+        .message-wrapper.ai {
+            background: var(--bg-secondary);
+        }
+
+        /* Content inside each message */
+        .message-content {
+            max-width: 800px;
+            width: 100%;
+            padding: 0 20px;
+            display: flex;
+            gap: 24px;
+        }
+
+        /* Avatar circle for user/AI */
+        .avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .avatar.user {
+            background: var(--user-bg);
+            color: white;
+        }
+
+        .avatar.ai {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        /* Message text content */
+        .message-text {
+            flex: 1;
+            line-height: 1.7;
+            font-size: 16px;
+            color: var(--text-primary);
+            padding-top: 4px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        /* Action buttons under AI messages */
+        .message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .action-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: var(--bg-input);
+            color: var(--text-primary);
+        }
+
+        /* Red background when speaking */
+        .action-btn.speaking {
+            background: #ef4444;
+            color: white;
+            border-color: #ef4444;
+        }
+
+        /* Welcome screen before first message */
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Animation when first message is sent */
+        .empty-state.slide-up {
+            transform: translateY(-300px);
+            opacity: 0;
+        }
+
+        .empty-state h2 {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 40px;
+            color: var(--text-primary);
+        }
+
+        /* Input area container */
+        .input-container {
+            background: var(--bg-primary);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Start centered, move to bottom after first message */
+        .input-container.centered {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, 50%);
+            width: 100%;
+            z-index: 10;
+        }
+
+        .input-container.bottom {
+            position: relative;
+            transform: none;
+        }
+
+        /* Wrapper for input and buttons */
+        .input-wrapper {
+            max-width: 800px;
+            width: 100%;
+            position: relative;
+        }
+
+        /* Main text input box */
+        .input-box {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px 90px 12px 50px;
+            color: var(--text-primary);
+            font-size: 16px;
+            font-family: inherit;
+            outline: none;
+            resize: none;
+            min-height: 24px;
+            max-height: 200px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+
+        .input-box:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 1px var(--accent-color);
+        }
+
+        /* Microphone button for voice input */
+        .mic-button {
+            position: absolute;
+            left: 8px;
+            bottom: 8px;
+            width: 32px;
+            height: 32px;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            color: var(--text-secondary);
+        }
+
+        .mic-button:hover {
+            background: var(--bg-secondary);
+        }
+
+        /* Red pulsing when recording */
+        .mic-button.recording {
+            color: #ef4444;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Send message button */
+        .send-button {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            width: 32px;
+            height: 32px;
+            background: var(--accent-color);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: #1a9f6a;
+        }
+
+        .send-button:disabled {
+            background: var(--bg-input);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .send-button svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+
+        /* Blinking cursor while AI is typing */
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: var(--text-primary);
+            margin-left: 2px;
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--scrollbar-bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-color);
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .message-content {
+                gap: 16px;
+            }
+
+            .empty-state h2 {
+                font-size: 24px;
+            }
+
+            .header-controls {
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top header -->
+    <div class="header">
+        <h1>ChatBot Ampere</h1>
+        <div class="header-controls">
+            <button class="control-button" id="themeToggle" onclick="toggleTheme()">
+                <span id="themeText">Light Mode</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main chat area -->
+    <div class="main-container">
+        <div class="chat-container" id="chatContainer">
+            <!-- Welcome message -->
+            <div class="empty-state" id="emptyState">
+                <h2>How can I help you today?</h2>
+            </div>
+        </div>
+
+        <!-- Input box (starts centered, moves to bottom) -->
+        <div class="input-container centered" id="inputContainer">
+            <div class="input-wrapper">
+                <!-- Voice input button -->
+                <button id="micButton" class="mic-button" title="Voice input">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                </button>
+                <!-- Text input -->
+                <textarea 
+                    id="userInput" 
+                    class="input-box" 
+                    placeholder="Message Gemini..."
+                    rows="1"
+                ></textarea>
+                <!-- Send button -->
+                <button id="sendButton" class="send-button">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get all important elements
+        const chatContainer = document.getElementById('chatContainer');
+        const userInput = document.getElementById('userInput');
+        const sendButton = document.getElementById('sendButton');
+        const emptyState = document.getElementById('emptyState');
+        const inputContainer = document.getElementById('inputContainer');
+        const micButton = document.getElementById('micButton');
+        
+        // Track state
+        let recognition = null;
+        let isRecording = false;
+        let currentTheme = 'dark';
+        let isFirstMessage = true;
+        let currentUtterance = null;  // Track current speech
+        let speakingButton = null;    // Track which button is speaking
+
+        // Setup voice recognition if available
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            // When speech is recognized
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                userInput.value = transcript;
+                autoResize();
+                isRecording = false;
+                micButton.classList.remove('recording');
+            };
+
+            // Handle errors
+            recognition.onerror = () => {
+                isRecording = false;
+                micButton.classList.remove('recording');
+            };
+
+            // When recording ends
+            recognition.onend = () => {
+                isRecording = false;
+                micButton.classList.remove('recording');
+            };
+        }
+
+        // Handle microphone button click
+        micButton.addEventListener('click', () => {
+            if (!recognition) {
+                alert('Speech recognition is not supported in your browser');
+                return;
+            }
+
+            if (isRecording) {
+                recognition.stop();
+                isRecording = false;
+                micButton.classList.remove('recording');
+            } else {
+                recognition.start();
+                isRecording = true;
+                micButton.classList.add('recording');
+            }
+        });
+
+        // Switch between light and dark theme
+        function toggleTheme() {
+            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            
+            const themeText = document.getElementById('themeText');
+            
+            if (currentTheme === 'light') {
+                themeText.textContent = 'Dark Mode';
+            } else {
+                themeText.textContent = 'Light Mode';
+            }
+            
+            // Save choice to browser
+            localStorage.setItem('theme', currentTheme);
+        }
+
+        // Load saved theme on page load
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            currentTheme = savedTheme;
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            const themeText = document.getElementById('themeText');
+            if (currentTheme === 'light') {
+                themeText.textContent = 'Dark Mode';
+            }
+        }
+
+        // Auto resize textarea as user types
+        function autoResize() {
+            userInput.style.height = 'auto';
+            userInput.style.height = userInput.scrollHeight + 'px';
+        }
+
+        userInput.addEventListener('input', autoResize);
+
+        // Add a message to the chat
+        function addMessage(content, isUser) {
+            // On first message, animate welcome screen away
+            if (isFirstMessage) {
+                emptyState.classList.add('slide-up');
+                inputContainer.classList.remove('centered');
+                inputContainer.classList.add('bottom');
+                
+                setTimeout(() => {
+                    emptyState.style.display = 'none';
+                }, 800);
+                
+                isFirstMessage = false;
+            }
+
+            // Create message elements
+            const messageWrapper = document.createElement('div');
+            messageWrapper.className = `message-wrapper ${isUser ? 'user' : 'ai'}`;
+
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+
+            const avatar = document.createElement('div');
+            avatar.className = `avatar ${isUser ? 'user' : 'ai'}`;
+            avatar.textContent = isUser ? 'U' : 'AI';
+
+            const messageText = document.createElement('div');
+            messageText.className = 'message-text';
+            messageText.textContent = content;
+
+            // Add Speak and Copy buttons to AI messages
+            if (!isUser) {
+                const actions = document.createElement('div');
+                actions.className = 'message-actions';
+                actions.innerHTML = `
+                    <button class="action-btn speak-btn" onclick="toggleSpeak(this)">Speak</button>
+                    <button class="action-btn" onclick="copyText(this)">Copy</button>
+                `;
+                messageText.appendChild(actions);
+            }
+
+            // Put it all together
+            messageContent.appendChild(avatar);
+            messageContent.appendChild(messageText);
+            messageWrapper.appendChild(messageContent);
+            chatContainer.appendChild(messageWrapper);
+
+            // Scroll to bottom
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            return messageText;
+        }
+
+        // Send message with streaming (typing effect)
+        async function sendMessageStreaming(message) {
+            // Animate welcome screen away on first message
+            if (isFirstMessage) {
+                emptyState.classList.add('slide-up');
+                inputContainer.classList.remove('centered');
+                inputContainer.classList.add('bottom');
+                
+                setTimeout(() => {
+                    emptyState.style.display = 'none';
+                }, 800);
+                
+                isFirstMessage = false;
+            }
+
+            // Create AI message with cursor
+            const messageWrapper = document.createElement('div');
+            messageWrapper.className = 'message-wrapper ai';
+
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar ai';
+            avatar.textContent = 'AI';
+
+            const messageText = document.createElement('div');
+            messageText.className = 'message-text';
+            
+            const textSpan = document.createElement('span');
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor';
+            
+            messageText.appendChild(textSpan);
+            messageText.appendChild(cursor);
+
+            messageContent.appendChild(avatar);
+            messageContent.appendChild(messageText);
+            messageWrapper.appendChild(messageContent);
+            chatContainer.appendChild(messageWrapper);
+
+            try {
+                // Call backend API with streaming enabled
+                const response = await fetch('http://127.0.0.1:5000/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message, stream: true })
+                });
+
+                // Read streaming response
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    // Process each line from stream
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.text) {
+                                fullText += data.text;
+                                textSpan.textContent = fullText;
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            }
+                            if (data.error) {
+                                textSpan.textContent = 'Error: ' + data.error;
+                            }
+                        }
+                    }
+                }
+
+                // Remove cursor when done
+                cursor.remove();
+
+                // Add action buttons
+                const actions = document.createElement('div');
+                actions.className = 'message-actions';
+                actions.innerHTML = `
+                    <button class="action-btn speak-btn" onclick="toggleSpeak(this)">Speak</button>
+                    <button class="action-btn" onclick="copyText(this)">Copy</button>
+                `;
+                messageText.appendChild(actions);
+
+            } catch (error) {
+                cursor.remove();
+                textSpan.textContent = 'Error: Unable to connect to the server';
+                console.error('Error:', error);
+            }
+        }
+
+        // Main function to send a message
+        async function sendMessage() {
+            const message = userInput.value.trim();
+
+            if (!message) return;
+
+            // Add user message to chat
+            addMessage(message, true);
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            sendButton.disabled = true;
+
+            // Get AI response with streaming
+            await sendMessageStreaming(message);
+
+            sendButton.disabled = false;
+            userInput.focus();
+        }
+
+        // Toggle speak/stop - speak message or stop speaking
+        function toggleSpeak(button) {
+            const messageText = button.closest('.message-text');
+            const textSpan = messageText.querySelector('span');
+            const textToSpeak = textSpan ? textSpan.textContent : messageText.childNodes[0].textContent;
+
+            if (!('speechSynthesis' in window)) {
+                alert('Text-to-speech is not supported in your browser');
+                return;
+            }
+
+            // If this button is currently speaking, stop it
+            if (button.classList.contains('speaking')) {
+                window.speechSynthesis.cancel();
+                button.textContent = 'Speak';
+                button.classList.remove('speaking');
+                currentUtterance = null;
+                speakingButton = null;
+                return;
+            }
+
+            // If another message is speaking, stop it first
+            if (speakingButton) {
+                window.speechSynthesis.cancel();
+                speakingButton.textContent = 'Speak';
+                speakingButton.classList.remove('speaking');
+            }
+
+            // Start speaking this message
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+
+            // When speech ends, reset button
+            utterance.onend = () => {
+                button.textContent = 'Speak';
+                button.classList.remove('speaking');
+                currentUtterance = null;
+                speakingButton = null;
+            };
+
+            // Update button to show "Stop"
+            button.textContent = 'Stop';
+            button.classList.add('speaking');
+            currentUtterance = utterance;
+            speakingButton = button;
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Copy message text to clipboard
+        function copyText(button) {
+            const messageText = button.closest('.message-text');
+            const textSpan = messageText.querySelector('span');
+            const textToCopy = textSpan ? textSpan.textContent : messageText.childNodes[0].textContent;
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        // Send on button click
+        sendButton.addEventListener('click', sendMessage);
+
+        // Send on Enter key (Shift+Enter for new line)
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Focus input on page load
+        userInput.focus();
+    </script>
+</body>
+</html>
