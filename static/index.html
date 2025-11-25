@@ -24,6 +24,7 @@
             --user-bg: #5436da;
             --scrollbar-bg: #343541;
             --scrollbar-thumb: #565869;
+            --stop-color: #ef4444;
         }
 
         /* Light theme colors */
@@ -38,6 +39,7 @@
             --user-bg: #5436da;
             --scrollbar-bg: #f7f7f8;
             --scrollbar-thumb: #d9d9e3;
+            --stop-color: #ef4444;
         }
 
         /* Main body setup */
@@ -337,6 +339,15 @@
             opacity: 0.5;
         }
 
+        /* Red background when button is in stop mode */
+        .send-button.stop-mode {
+            background: var(--stop-color);
+        }
+
+        .send-button.stop-mode:hover {
+            background: #dc2626;
+        }
+
         .send-button svg {
             width: 20px;
             height: 20px;
@@ -430,10 +441,15 @@
                     placeholder="Message Gemini..."
                     rows="1"
                 ></textarea>
-                <!-- Send button -->
-                <button id="sendButton" class="send-button">
-                    <svg viewBox="0 0 24 24">
+                <!-- Send/Stop button -->
+                <button id="sendButton" class="send-button" title="Send message">
+                    <!-- Send icon -->
+                    <svg id="sendIcon" viewBox="0 0 24 24">
                         <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                    <!-- Stop icon (hidden by default) -->
+                    <svg id="stopIcon" viewBox="0 0 24 24" style="display: none;">
+                        <rect x="6" y="6" width="12" height="12" rx="1"/>
                     </svg>
                 </button>
             </div>
@@ -445,6 +461,8 @@
         const chatContainer = document.getElementById('chatContainer');
         const userInput = document.getElementById('userInput');
         const sendButton = document.getElementById('sendButton');
+        const sendIcon = document.getElementById('sendIcon');
+        const stopIcon = document.getElementById('stopIcon');
         const emptyState = document.getElementById('emptyState');
         const inputContainer = document.getElementById('inputContainer');
         const micButton = document.getElementById('micButton');
@@ -454,8 +472,11 @@
         let isRecording = false;
         let currentTheme = 'dark';
         let isFirstMessage = true;
-        let currentUtterance = null;  // Track current speech
-        let speakingButton = null;    // Track which button is speaking
+        let currentUtterance = null;
+        let speakingButton = null;
+        let isStreaming = false;
+        let streamReader = null;
+        let currentMessageElement = null;
 
         // Setup voice recognition if available
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -540,6 +561,52 @@
         }
 
         userInput.addEventListener('input', autoResize);
+
+        // Change send button to stop button
+        function setSendButtonMode(mode) {
+            if (mode === 'stop') {
+                sendButton.classList.add('stop-mode');
+                sendButton.title = 'Stop generating';
+                sendIcon.style.display = 'none';
+                stopIcon.style.display = 'block';
+                isStreaming = true;
+            } else {
+                sendButton.classList.remove('stop-mode');
+                sendButton.title = 'Send message';
+                sendIcon.style.display = 'block';
+                stopIcon.style.display = 'none';
+                isStreaming = false;
+            }
+        }
+
+        // Stop streaming response
+        function stopStreaming() {
+            if (streamReader) {
+                streamReader.cancel();
+                streamReader = null;
+            }
+            
+            // Remove cursor if exists
+            if (currentMessageElement) {
+                const cursor = currentMessageElement.querySelector('.cursor');
+                if (cursor) {
+                    cursor.remove();
+                }
+                
+                // Add action buttons
+                const actions = document.createElement('div');
+                actions.className = 'message-actions';
+                actions.innerHTML = `
+                    <button class="action-btn speak-btn" onclick="toggleSpeak(this)">Speak</button>
+                    <button class="action-btn" onclick="copyText(this)">Copy</button>
+                `;
+                currentMessageElement.appendChild(actions);
+            }
+            
+            setSendButtonMode('send');
+            sendButton.disabled = false;
+            userInput.focus();
+        }
 
         // Add a message to the chat
         function addMessage(content, isUser) {
@@ -635,6 +702,8 @@
             messageWrapper.appendChild(messageContent);
             chatContainer.appendChild(messageWrapper);
 
+            currentMessageElement = messageText;
+
             try {
                 // Call backend API with streaming enabled
                 const response = await fetch('http://127.0.0.1:5000/chat', {
@@ -647,6 +716,7 @@
 
                 // Read streaming response
                 const reader = response.body.getReader();
+                streamReader = reader;
                 const decoder = new TextDecoder();
                 let fullText = '';
 
@@ -686,14 +756,32 @@
                 messageText.appendChild(actions);
 
             } catch (error) {
-                cursor.remove();
-                textSpan.textContent = 'Error: Unable to connect to the server';
-                console.error('Error:', error);
+                if (error.name === 'AbortError') {
+                    // Stream was cancelled by user
+                    console.log('Stream cancelled by user');
+                } else {
+                    const cursor = messageText.querySelector('.cursor');
+                    if (cursor) cursor.remove();
+                    textSpan.textContent = 'Error: Unable to connect to the server';
+                    console.error('Error:', error);
+                }
+            } finally {
+                streamReader = null;
+                currentMessageElement = null;
+                setSendButtonMode('send');
+                sendButton.disabled = false;
+                userInput.focus();
             }
         }
 
-        // Main function to send a message
+        // Main function to send a message or stop streaming
         async function sendMessage() {
+            // If currently streaming, stop it
+            if (isStreaming) {
+                stopStreaming();
+                return;
+            }
+
             const message = userInput.value.trim();
 
             if (!message) return;
@@ -702,13 +790,12 @@
             addMessage(message, true);
             userInput.value = '';
             userInput.style.height = 'auto';
-            sendButton.disabled = true;
+            
+            // Change button to stop mode
+            setSendButtonMode('stop');
 
             // Get AI response with streaming
             await sendMessageStreaming(message);
-
-            sendButton.disabled = false;
-            userInput.focus();
         }
 
         // Toggle speak/stop - speak message or stop speaking
